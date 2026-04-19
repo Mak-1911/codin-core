@@ -109,35 +109,30 @@ function createChatInputArea(theme: Theme): VNode {
 
   return Box(
     {
+      id: "chat-input-area",
       flexDirection: "column",
       paddingX: 2,
-      paddingY: 1,
-      backgroundColor: theme.chatInputBg,
-      width: "95%",
-      marginLeft: "2.5%"
+      width: "100%",
+      border: true,
+      borderStyle:'rounded',
+      borderColor:'#D97757',
+      onMouseDown: () => {
+        focusChatInput()
+      }
     },
-    // Mode/Model bar
-    Box(
-      { flexDirection: "row", marginBottom: 1 },
-      Text({ content: appState.selectedMode, fg: theme.secondary }),
-      Text({ content: " · ", fg: theme.textDim }),
-      Text({ content: appState.selectedModel.toUpperCase(), fg: theme.textMuted }),
-      processing ? Text({ content: " ●", fg: theme.warning }) : null
-    ),
     // Input box
     Box(
       {
+        id: "chat-input-row",
         flexDirection: "row",
-        backgroundColor: theme.chatInputBg,
-        height: 2,
+        height: 1,
       },
-      Text({ content: "› ", fg: theme.secondary }),
+      Text({ content: "› ", fg: "#FFFFFF" }),
       Input({
         id: "chat-input",
         width: "100%",
-        backgroundColor: theme.chatInputBg,
         textColor: theme.text,
-        placeholder: hasPermission ? "Use ↑↓ to select option, enter to confirm" : processing ? "Working..." : "Message",
+        placeholder: ">" + hasPermission ? "Use ↑↓ to select option, enter to confirm" : processing ? "Working..." : "Type a Message or / Command",
       })
     )
   )
@@ -193,7 +188,7 @@ function formatToolName(toolName: string): string {
     read_file: "Read",
     list_files: "List",
     grep: "Search",
-    web_search: "Search",
+    web_search: "WebSearch",
     search_and_replace: "Replace",
     bash: "Bash",
   }
@@ -251,7 +246,6 @@ function createMessageView(msg: AgentMessage, theme: Theme): VNode {
       if (tc.result) {
         const result = tc.result as Record<string, unknown>
         if (result.success === false) {
-          isError = true
           fullOutput = String(result.error || "Failed")
         } else if (result.output && typeof result.output === "string") {
           fullOutput = result.output
@@ -353,7 +347,7 @@ function createMessageView(msg: AgentMessage, theme: Theme): VNode {
                 backgroundColor: isOptionSelected ? theme.backgroundLight : "transparent",
               },
               Box(
-                { flexDirection: "row", gap: 1 },
+                { flexDirection: "row"},
                 Text({ content: isOptionSelected ? "❯" : " ", fg: theme.accent }),
                 Text({ content: `${idx + 1}.`, fg: theme.textDim }),
                 Text({ content: opt.label, fg: isOptionSelected ? theme.text : theme.textMuted })

@@ -69,37 +69,43 @@ export function createPromptScreen(contentRoot: RootRenderable | BoxRenderable |
     },
     Box(
       {
-        flexDirection: "row",
+        flexDirection: "column",
         padding: 0,
         backgroundColor: "transparent",
       },
       // Prompt bar (colored vertical bar)
-      Box({
-        width: 1,
-        backgroundColor: theme.promptBar,
-      }),
+     Box(
+      {alignItems:'flex-start', flexDirection:"row", justifyContent:"space-between"},
+      Text({ content: "auto(tab) to switch between modes / models ⇵",fg: theme.textDim}),
+      Text({ content: "Model",fg: theme.userMsgBg}),
+     ),
       // Prompt box
+      
       Box(
         {
-          width: 50,
+          width: "90%",
           padding: 0,
           flexDirection: "column",
-          backgroundColor: theme.inputBg,
+          backgroundColor: "transparent",
+          border: true,
+          borderStyle: "rounded",
+          borderColor: theme.textMuted,
         },
         // Input field
         Box(
-          { padding: 1, flexDirection: "row", gap: 1, backgroundColor: theme.inputBg },
+          { flexDirection: "row", gap: 1, backgroundColor: "transparent" },
+          Text({ content: ">", fg: theme.textDim, marginLeft: 1}),
           Input({
             id: "prompt-input",
-            width: 48,
-            backgroundColor: theme.inputBg,
+            width: "90%",
+            backgroundColor: "transparent",
             textColor: theme.text,
             placeholder: "",
-            marginLeft:1,
           })
         ),
         // Tab bar
-        Box(
+      ),
+      Box(
           { flexDirection: "row", gap: 1, paddingLeft: 1, paddingRight: 1, paddingBottom: 1 },
           ...tabs.map((tab, idx) => {
             // When inputFocused=true, we're on input. When false, we're on tabs
@@ -109,13 +115,16 @@ export function createPromptScreen(contentRoot: RootRenderable | BoxRenderable |
               {
                 paddingLeft: 1,
                 paddingRight: 1,
-                backgroundColor: isActive ? theme.activeTab : theme.inactiveTab,
+                backgroundColor: isActive ? theme.activeTab : "#FFB087",
+                bottom: 0
               },
-              Text({ content: tab.name, fg: isActive ? theme.text : theme.textDim })
+              Text({ content: tab.name.toUpperCase(), fg: isActive ? theme.text : "#000000" })
             )
           })
+        ),
+      Box({},
+          Text({ content:"? for help", fg: theme.textDim})
         )
-      )
     )
   )
 }
@@ -167,6 +176,7 @@ export function createSelectionOverlay(contentRoot: RootRenderable | BoxRenderab
       height: "100%",
       justifyContent: "center",
       alignItems: "center",
+      backgroundColor: theme.background
     },
     Box(
       {
@@ -199,6 +209,15 @@ export function createSelectionOverlay(contentRoot: RootRenderable | BoxRenderab
 export function focusPromptInput() {
   if (promptInputElement) {
     promptInputElement.focus()
+  }
+}
+
+/**
+ * Blur the prompt input
+ */
+export function blurPromptInput() {
+  if (promptInputElement) {
+    promptInputElement.blur()
   }
 }
 

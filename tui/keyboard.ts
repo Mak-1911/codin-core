@@ -11,21 +11,12 @@ import {
   handleEscape,
 } from "./prompt-screen"
 import { closeOverlay, getOverlayElements } from "./overlays"
+import { closeCommandPalette, getCommandPaletteElements, openCommandPalette } from "./command-palette"
 import { getPermissionResolver } from "./agent-binding"
 import { PermissionDecision } from "../src/types/permissions"
-import { filterCommands } from "./app"
 
 let renderer: CliRenderer | null = null
 let scrollBoxElement: any = null
-
-// Command palette focus tracking
-let commandPaletteInput: any = null
-let commandPaletteSelect: any = null
-
-export function setCommandPaletteElements(inputEl: any, selectEl: any) {
-  commandPaletteInput = inputEl
-  commandPaletteSelect = selectEl
-}
 
 export function setupKeyboard(r: CliRenderer) {
   renderer = r
@@ -34,14 +25,22 @@ export function setupKeyboard(r: CliRenderer) {
     handleKey(key)
   })
 
-  // Intercept hitTest to return ScrollBox for scroll events in chat screen
-  // This is needed because hitTest returns the innermost element (Text/Box)
-  // but scroll events should go to the ScrollBox parent
+  // Intercept hitTest so mouse events reach interactive container nodes.
   const originalHitTest = (r as any).hitTest.bind(r)
   ;(r as any).hitTest = function(x: number, y: number): number {
-    // For scroll events on chat screen, return the ScrollBox
+    if (appState.commandPaletteOpen) {
+      const { input: paletteInput, select: paletteSelect } = getCommandPaletteElements()
+
+      if (paletteInput && x >= paletteInput.x && x < paletteInput.x + paletteInput.width && y >= paletteInput.y && y < paletteInput.y + paletteInput.height) {
+        return paletteInput.num
+      }
+
+      if (paletteSelect && x >= paletteSelect.x && x < paletteSelect.x + paletteSelect.width && y >= paletteSelect.y && y < paletteSelect.y + paletteSelect.height) {
+        return paletteSelect.num
+      }
+    }
+
     if (appState.screen === "chat" && scrollBoxElement) {
-      // Check if the point is within the ScrollBox's bounds
       const sb = scrollBoxElement
       if (x >= sb.x && x < sb.x + sb.width && y >= sb.y && y < sb.y + sb.height) {
         return sb.num
@@ -51,56 +50,11 @@ export function setupKeyboard(r: CliRenderer) {
   }
 }
 
-// Export function to set scroll box reference
 export function setScrollBoxElement(el: any) {
   scrollBoxElement = el
 }
 
 function handleKey(key: KeyEvent) {
-  // Command palette (Ctrl+P)
-  if (key.ctrl && key.name === "p") {
-    appState.commandPaletteOpen = !appState.commandPaletteOpen
-    if (appState.commandPaletteOpen) {
-      // Reset state when opening
-      appState.commandPaletteQuery = ""
-      appState.commandPaletteSelectedIndex = 0
-      appState.filteredCommands = []
-    }
-    triggerRebuild()
-    return
-  }
-
-  // Close command palette with Escape
-  if (appState.commandPaletteOpen && key.name === "escape") {
-    appState.commandPaletteOpen = false
-    appState.commandPaletteQuery = ""
-    appState.commandPaletteSelectedIndex = 0
-    appState.filteredCommands = []
-    triggerRebuild()
-    return
-  }
-
-  // Command palette navigation: Up/Down between input and select
-  if (appState.commandPaletteOpen) {
-    // Down arrow: move from input to select
-    if ((key.name === "down" || key.name === "j") && commandPaletteInput && commandPaletteSelect) {
-      // Check if input is focused by trying to move focus to select
-      if (commandPaletteSelect) {
-        commandPaletteSelect.focus?.()
-        return
-      }
-    }
-    // Up arrow at top of select: move back to input
-    if ((key.name === "up" || key.name === "k") && commandPaletteSelect && commandPaletteInput) {
-      // Check if select is at index 0
-      const selectIndex = commandPaletteSelect.getSelectedIndex?.() ?? commandPaletteSelect.selectedIndex
-      if (selectIndex === 0) {
-        commandPaletteInput.focus?.()
-        return
-      }
-    }
-  }
-
   // Prompt screen
   if (appState.screen === "prompt") {
     handlePromptKeys(key)
@@ -154,6 +108,36 @@ function handlePromptKeys(key: KeyEvent) {
   // Enter when on tab (not input) - open overlay
   if ((key.name === "return" || key.name === "enter") && !appState.inputFocused && !appState.overlayOpen) {
     handleEnterOnTab()
+    return
+  }
+
+  if (appState.commandPaletteOpen) {
+    if (key.name === "escape" || (key.ctrl && key.name === "p")) {
+      closeCommandPalette()
+      return
+    }
+
+    const { input: paletteInput, select: paletteSelect } = getCommandPaletteElements()
+
+    if ((key.name === "down" || key.name === "j") && paletteInput && paletteSelect) {
+      paletteSelect.focus?.()
+      return
+    }
+
+    if ((key.name === "up" || key.name === "k") && paletteSelect && paletteInput) {
+      const selectIndex = paletteSelect.getSelectedIndex?.() ?? paletteSelect.selectedIndex
+      if (selectIndex === 0) {
+        paletteInput.focus?.()
+        return
+      }
+    }
+
+    return
+  }
+
+  // Ctrl+P - command palette
+  if (key.ctrl && key.name === "p") {
+    openCommandPalette()
     return
   }
 
@@ -236,6 +220,36 @@ function handleChatKeys(key: KeyEvent) {
       }
       return
     }
+    return
+  }
+
+  if (appState.commandPaletteOpen) {
+    if (key.name === "escape" || (key.ctrl && key.name === "p")) {
+      closeCommandPalette()
+      return
+    }
+
+    const { input: paletteInput, select: paletteSelect } = getCommandPaletteElements()
+
+    if ((key.name === "down" || key.name === "j") && paletteInput && paletteSelect) {
+      paletteSelect.focus?.()
+      return
+    }
+
+    if ((key.name === "up" || key.name === "k") && paletteSelect && paletteInput) {
+      const selectIndex = paletteSelect.getSelectedIndex?.() ?? paletteSelect.selectedIndex
+      if (selectIndex === 0) {
+        paletteInput.focus?.()
+        return
+      }
+    }
+
+    return
+  }
+
+  // Ctrl+P - command palette
+  if (key.ctrl && key.name === "p") {
+    openCommandPalette()
     return
   }
 

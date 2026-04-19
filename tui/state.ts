@@ -49,14 +49,11 @@ export const appState = {
   selectedMode: "Chat",
   selectedModel: "gpt-4o",
   sidebarOpen: false,
-  expandedToolCalls: new Set<string>(),
-  
-  // Command palette
   commandPaletteOpen: false,
   commandPaletteQuery: "",
   commandPaletteSelectedIndex: 0,
-  filteredCommands: [] as CommandOption[],
-  
+  expandedToolCalls: new Set<string>(),
+
   // Agent state
   agentState: {
     isProcessing: false,

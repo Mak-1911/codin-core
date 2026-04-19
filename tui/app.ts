@@ -6,12 +6,6 @@
 import {
   Box,
   Text,
-  Select,
-  Input,
-  SelectRenderable,
-  SelectRenderableEvents,
-  InputRenderable,
-  InputRenderableEvents,
   type CliRenderer,
   type VNode,
   type BoxRenderable,
@@ -22,19 +16,15 @@ import { cwd } from "node:process"
 import { appState, triggerRebuild, setRenderer, setStateChangeCallback, setTheme, renderer as rendererRef } from "./state"
 import { mascot, heading } from "./assets/content"
 import { initializeAgentOrchestrator } from "./agent-binding"
-import { setupKeyboard, setCommandPaletteElements } from "./keyboard"
-import { createPromptScreen } from "./prompt-screen"
+import { setupKeyboard } from "./keyboard"
+import { createPromptScreen, blurPromptInput } from "./prompt-screen"
 import { createChatScreen } from "./chat-screen"
 import { createModeSelectionOverlay, createModelSelectionOverlay } from "./overlays"
+import { createCommandPalette } from "./command-palette"
 import { themes } from "./themes"
 
 // Store reference to content root
 let contentRoot: RootRenderable | null = null
-
-// Command palette component references
-let commandPaletteInput: InputRenderable | null = null
-let commandPaletteSelect: SelectRenderable | null = null
-let commandPaletteSelectOptions: any[] = []
 
 /**
  * Create the main application
@@ -52,7 +42,7 @@ export function createApp(renderer: CliRenderer): VNode {
       width: "100%",
       height: "100%",
       position: "relative",
-      backgroundColor: theme.background,
+      backgroundColor:"transparent",
     },
     // Background (prompt screen only)
     createPromptBackground(),
@@ -149,6 +139,11 @@ export function rebuildUI() {
   const overlayContainer = contentRoot.findDescendantById("overlay-container") as BoxRenderable | null
   if (overlayContainer) {
     clearContainer(overlayContainer)
+
+    // Blur prompt input when any overlay opens
+    if (appState.overlayOpen || appState.sidebarOpen || appState.commandPaletteOpen) {
+      blurPromptInput()
+    }
 
     if (appState.overlayOpen && appState.screen === "prompt") {
       if (appState.activeTabIndex === 0) {
@@ -266,13 +261,17 @@ function createFooter(): VNode {
   return Box(
     {
       flexDirection: "row",
-      alignItems: "center",
+      alignItems: "flex-start",
       justifyContent: "space-between",
       backgroundColor: theme.background,
     },
-    Text({ content: "ctrl+p: palette", fg: theme.textMuted }),
-    Text({ content: "ctrl+b: sidebar", fg: theme.textMuted }),
-    Text({ content: theme.name, fg: theme.primary })
+    Text({ content: "ctrl+p palette", fg: theme.textDim }),
+    Text({content:"•", fg: theme.textMuted}),
+    Text({ content: "ctrl+b sidebar", fg: theme.textDim }),
+    Text({content:"•", fg: theme.textMuted}),
+    Text({ content: "ctrl+m models", fg: theme.textDim }),
+    Text({content:"•", fg: theme.textMuted}),
+    Text({ content: theme.name, fg: theme.textDim })
   )
 }
 
@@ -297,178 +296,6 @@ function createSidebar(): VNode {
     },
     Text({ content: "Sidebar", fg: theme.textMuted }),
     Text({ content: `cwd: ${cwd()}`, fg: theme.textDim })
-  )
-}
-
-/**
- * Create command palette
- * Uses Select component with fixed height for scrollable command list
- */
-function createCommandPalette(): VNode {
-  const theme = appState.currentTheme
-  const filteredCommands = appState.filteredCommands.length > 0
-    ? appState.filteredCommands
-    : appState.commands
-
-  // Convert commands to Select options format
-  const selectOptions = filteredCommands.map(cmd => ({
-    name: cmd.label,
-    description: cmd.category ? `${cmd.category}: ${cmd.description}` : cmd.description,
-    // Store the original command for execution
-    _command: cmd,
-  }))
-
-  // Store options for later updates
-  commandPaletteSelectOptions = selectOptions
-
-  // Set up event handlers after render
-  setTimeout(() => {
-    if (!contentRoot) return
-
-    const input = contentRoot.findDescendantById("command-palette-input") as InputRenderable | null
-    const select = contentRoot.findDescendantById("command-palette-select") as SelectRenderable | null
-
-    if (input) {
-      commandPaletteInput = input
-      input.focus()
-      input.value = appState.commandPaletteQuery
-
-      // Handle input changes - update select options directly in real-time
-      input.on(InputRenderableEvents.CHANGE, (value: string) => {
-        appState.commandPaletteQuery = value
-        filterCommands(value)
-
-        // Update select options directly for real-time filtering (use local select variable)
-        if (select) {
-          const newOptions = (appState.filteredCommands.length > 0
-            ? appState.filteredCommands
-            : appState.commands
-          ).map(cmd => ({
-            name: cmd.label,
-            description: cmd.category ? `${cmd.category}: ${cmd.description}` : cmd.description,
-            _command: cmd,
-          }))
-
-          // Update the select's options property directly
-          select.options = newOptions
-          commandPaletteSelectOptions = newOptions
-          select.selectedIndex = 0
-          appState.commandPaletteSelectedIndex = 0
-        }
-      })
-
-      // Handle Enter key on input - execute selected command if valid
-      input.on(InputRenderableEvents.ENTER, () => {
-        const currentCommands = appState.filteredCommands.length > 0
-          ? appState.filteredCommands
-          : appState.commands
-
-        // Only execute if there are matching commands
-        if (currentCommands.length > 0 && appState.commandPaletteSelectedIndex < currentCommands.length) {
-          const cmd = currentCommands[appState.commandPaletteSelectedIndex]
-          if (cmd && cmd.action) {
-            appState.commandPaletteOpen = false
-            appState.commandPaletteQuery = ""
-            appState.commandPaletteSelectedIndex = 0
-            appState.filteredCommands = []
-            cmd.action()
-          }
-        }
-        // If no matches, keep palette open
-      })
-    }
-
-    if (select) {
-      commandPaletteSelect = select
-      select.selectedIndex = Math.min(appState.commandPaletteSelectedIndex, selectOptions.length - 1)
-
-      // Handle Enter key - execute selected command
-      select.on(SelectRenderableEvents.ITEM_SELECTED, (index: number, option: any) => {
-        const cmd = option._command
-        if (cmd && cmd.action) {
-          appState.commandPaletteOpen = false
-          appState.commandPaletteQuery = ""
-          appState.commandPaletteSelectedIndex = 0
-          appState.filteredCommands = []
-          cmd.action()
-        }
-      })
-
-      // Handle arrow key navigation - update selection index
-      select.on(SelectRenderableEvents.SELECTION_CHANGED, (index: number, option: any) => {
-        appState.commandPaletteSelectedIndex = index
-      })
-    }
-
-    // Register elements with keyboard handler for navigation
-    if (input && select) {
-      setCommandPaletteElements(input, select)
-    }
-  }, 50)
-
-  return Box(
-    {
-      id: "command-palette-overlay",
-      position: "absolute",
-      top: 0,
-      left: 0,
-      width: "100%",
-      height: "100%",
-      justifyContent: "flex-start",
-      alignItems: "center",
-      paddingTop: 3,
-      backgroundColor: "#00000065"
-    },
-    Box(
-      {
-        id: "command-palette-box",
-        width: 70,
-        padding: 1,
-        gap: 1,
-        backgroundColor: theme.overlayBg,
-        flexDirection: "column",
-      },
-      // Header
-      Box(
-        {
-          flexDirection: "row",
-          justifyContent: "space-between",
-          alignItems: "center",
-          paddingBottom: 1,
-        },
-        Text({ content: "Command Palette", fg: theme.text }),
-        Text({ content: `Theme: ${theme.name}`, fg: theme.primary })
-      ),
-      // Search input (for display only - type to filter then press tab to see results)
-      Input({
-        id: "command-palette-input",
-        width: "100%",
-        placeholder: "Type to filter, Tab to see results, Esc to close",
-        backgroundColor: theme.backgroundDark,
-        textColor: theme.text,
-      }),
-      // Commands list with fixed height and scroll
-      Select({
-        id: "command-palette-select",
-        options: selectOptions,
-        width: "100%",
-        height: 12,
-        selectedIndex: Math.min(appState.commandPaletteSelectedIndex, selectOptions.length - 1),
-        selectedBackgroundColor: theme.backgroundLight,
-        selectedTextColor: theme.text,
-        showScrollIndicator: true,
-      }),
-      // Footer hint
-      Box(
-        {
-          flexDirection: "row",
-          justifyContent: "space-between",
-          paddingTop: 1,
-        },
-        Text({ content: "↑↓ navigate, enter confirm, esc close", fg: theme.textDim }),
-        Text({ content: `${filteredCommands.length} commands`, fg: theme.textDim })
-      )
-    )
   )
 }
 
@@ -541,26 +368,30 @@ function setupCommands() {
     },
     // Theme commands
     ...themeCommands,
+    {
+      id: "new-conversation",
+      label: "New Conversation",
+      description: "Start a new conversation",
+      category: "Chat",
+      action: () => {
+        appState.screen = "prompt"
+        appState.agentState.messages = []
+        appState.toastMessage = "New conversation started"
+        appState.toastType = "info"
+        triggerRebuild()
+      },
+    },
+    {
+      id: "switch-to-prompt",
+      label: "Switch to Prompt Mode",
+      description: "Go to prompt screen",
+      category: "Navigation",
+      action: () => {
+        appState.screen = "prompt"
+        triggerRebuild()
+      },
+    },
   ]
-}
-
-/**
- * Filter commands based on query
- */
-export function filterCommands(query: string): void {
-  if (!query.trim()) {
-    appState.filteredCommands = []
-    appState.commandPaletteSelectedIndex = 0
-    return
-  }
-
-  const lowerQuery = query.toLowerCase()
-  appState.filteredCommands = appState.commands.filter(cmd =>
-    cmd.label.toLowerCase().includes(lowerQuery) ||
-    cmd.description?.toLowerCase().includes(lowerQuery) ||
-    cmd.category?.toLowerCase().includes(lowerQuery)
-  )
-  appState.commandPaletteSelectedIndex = 0
 }
 
 /**
