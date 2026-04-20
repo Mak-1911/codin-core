@@ -12,8 +12,7 @@ import {
 } from "./prompt-screen"
 import { closeOverlay, getOverlayElements } from "./overlays"
 import { closeCommandPalette, getCommandPaletteElements, openCommandPalette } from "./command-palette"
-import { getPermissionResolver } from "./agent-binding"
-import { PermissionDecision } from "../src/types/permissions"
+import { handlePermissionResponse } from "./agent-binding"
 
 let renderer: CliRenderer | null = null
 let scrollBoxElement: any = null
@@ -152,7 +151,6 @@ function handleChatKeys(key: KeyEvent) {
   // Permission inline navigation (highest priority)
   if (appState.agentState.pendingPermission) {
     const permission = appState.agentState.pendingPermission
-    const resolver = getPermissionResolver()
 
     if (key.name === "up" || key.name === "k") {
       if (permission.selectedIndex > 0) {
@@ -170,31 +168,13 @@ function handleChatKeys(key: KeyEvent) {
     }
     if (key.name === "return" || key.name === "enter") {
       const selected = permission.options[permission.selectedIndex]
-      if (selected && resolver) {
-        // Call the permission resolver to continue the agent loop
-        switch (selected.type) {
-          case "allow_once":
-            resolver(PermissionDecision.ALLOW, "Allowed once")
-            break
-          case "allow_session":
-            resolver(PermissionDecision.ALLOW, "Allowed for session")
-            break
-          case "custom":
-            // For custom, we deny and let the user type a custom message
-            appState.agentState.pendingPermission = null
-            triggerRebuild()
-            break
-        }
+      if (selected) {
+        handlePermissionResponse({ type: selected.type })
       }
       return
     }
     if (key.name === "escape") {
-      if (resolver) {
-        resolver(PermissionDecision.DENY, "Cancelled by user")
-      } else {
-        appState.agentState.pendingPermission = null
-        triggerRebuild()
-      }
+      handlePermissionResponse({ type: "deny" })
       return
     }
     // Also handle number keys 1-9 for quick selection
@@ -203,19 +183,8 @@ function handleChatKeys(key: KeyEvent) {
       if (idx < permission.options.length) {
         permission.selectedIndex = idx
         const selected = permission.options[idx]
-        if (selected && resolver) {
-          switch (selected.type) {
-            case "allow_once":
-              resolver(PermissionDecision.ALLOW, "Allowed once")
-              break
-            case "allow_session":
-              resolver(PermissionDecision.ALLOW, "Allowed for session")
-              break
-            case "custom":
-              appState.agentState.pendingPermission = null
-              triggerRebuild()
-              break
-          }
+        if (selected) {
+          handlePermissionResponse({ type: selected.type })
         }
       }
       return

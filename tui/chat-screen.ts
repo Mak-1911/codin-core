@@ -23,6 +23,7 @@ import { setScrollBoxElement } from "./keyboard"
 
 let chatInputElement: InputRenderable | null = null
 let scrollBoxElement: ScrollBoxRenderable | null = null
+let boundChatInputElement: InputRenderable | null = null
 
 /**
  * Create the chat screen
@@ -42,12 +43,15 @@ export function createChatScreen(contentRoot: RootRenderable | BoxRenderable | n
       chatInputElement = input
       input.focus()
 
-      input.on(InputRenderableEvents.ENTER, (value: string) => {
-        if (value.trim() && !appState.agentState.isProcessing && appState.orchestrator) {
-          processUserInput(value.trim())
-          input.value = ""
-        }
-      })
+      if (input !== boundChatInputElement) {
+        boundChatInputElement = input
+        input.on(InputRenderableEvents.ENTER, (value: string) => {
+          if (value.trim() && !appState.agentState.isProcessing && appState.orchestrator) {
+            processUserInput(value.trim())
+            input.value = ""
+          }
+        })
+      }
     }
 
     const scrollBox = contentRoot.findDescendantById("chat-scrollbox") as ScrollBoxRenderable | null
@@ -132,7 +136,7 @@ function createChatInputArea(theme: Theme): VNode {
         id: "chat-input",
         width: "100%",
         textColor: theme.text,
-        placeholder: ">" + hasPermission ? "Use ↑↓ to select option, enter to confirm" : processing ? "Working..." : "Type a Message or / Command",
+        placeholder: hasPermission ? "Use arrows to select option, enter to confirm" : processing ? "Working..." : "Type a Message or / Command",
       })
     )
   )
