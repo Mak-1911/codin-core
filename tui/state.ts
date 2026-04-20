@@ -85,15 +85,20 @@ export const appState = {
 
 // State update callback
 let onStateChange: (() => void) | null = null
+let rebuildScheduled = false
 
 export function setStateChangeCallback(cb: () => void) {
   onStateChange = cb
 }
 
 export function triggerRebuild() {
-  if (onStateChange) {
-    onStateChange()
-  }
+  if (!onStateChange || rebuildScheduled) return
+
+  rebuildScheduled = true
+  setTimeout(() => {
+    rebuildScheduled = false
+    onStateChange?.()
+  }, 0)
 }
 
 // Helper to update state and trigger rebuild

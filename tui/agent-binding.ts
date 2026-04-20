@@ -222,7 +222,6 @@ function setupCallbacks(orchestrator: AgentOrchestrator) {
       setTimeout(() => scrollToBottom(), 100)
 
       permissionResolver = (decision, reason) => {
-        resolve(decision)
         appState.agentState.pendingPermission = null
         appState.agentState.isProcessing = decision !== PermissionDecision.DENY
 
@@ -237,6 +236,7 @@ function setupCallbacks(orchestrator: AgentOrchestrator) {
         appState.agentState.messages.push(resolutionMsg)
         triggerRebuild()
         setTimeout(() => scrollToBottom(), 100)
+        setTimeout(() => resolve(decision), 0)
       }
     })
   })
